@@ -1,0 +1,10 @@
+{
+  "name": "Dr. Sarah Johnson",
+  "email": "sarah@example.com",
+  "phone": "555-0123",
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "address": "123 Main St, New York, NY 10001",
+  "availability": "Mon-Fri 9AM-5PM",
+  "notes": "Specializes in anxiety and depression"
+}

@@ -1,0 +1,13 @@
+name: openfielder
+metadata:
+  template: openfielder@0.0.1-beta
+services:
+  api:
+    project: ./api
+    language: js
+    host: function
+  web:
+    project: ./
+    language: js
+    host: staticwebapp
+    dist: dist
