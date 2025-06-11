@@ -6,23 +6,11 @@
     },
     {
       "route": "/logout",
-      "redirect": "/.auth/logout?post_logout_redirect_uri=/LogoutRedirect"
+      "rewrite": "/.auth/logout"
     },
     {
       "route": "/api/*",
       "allowedRoles": ["authenticated"]
-    },
-    {
-        "route": "/api",
-        "allowedRoles": ["authenticated"]
-    },
-    {
-        "route": "/",
-        "allowedRoles": ["authenticated"]
-    },
-    {
-        "route": "*",
-        "allowedRoles": ["authenticated"]
     }
   ],
   "navigationFallback": {
@@ -37,11 +25,10 @@
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-MS-CLIENT-PRINCIPAL"
   },
-    "responseOverrides": {
-      "401": {
-        "redirect": "/.auth/login/aad?post_login_redirect_uri=.referrer",
-        "statusCode": 302,
-        "exclude": ["/assets/illustrations/*.{png,jpg,gif}", "/css/*"]
-      }
+  "responseOverrides": {
+    "401": {
+      "redirect": "/login",
+      "statusCode": 302
     }
+  }
 }

@@ -16,6 +16,7 @@
 import './functions/therapists';
 import './functions/clients';
 import './functions/pairing';
+import './functions/getMapsToken';
 
 console.log('OpenFielder API - Azure Functions initialized');
 console.log('Available endpoints:');

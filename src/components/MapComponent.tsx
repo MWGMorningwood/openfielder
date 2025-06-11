@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import * as atlas from 'azure-maps-control';
 import type { Therapist, Client } from '../types';
+import { AuthService } from '../services/authService';
+
+// Azure Maps configuration using Entra authentication directly
+const AZURE_CLIENT_ID = import.meta.env.VITE_AZURE_CLIENT_ID;
 
 interface MapComponentProps {
   therapists: Therapist[];
@@ -23,21 +27,49 @@ export default function MapComponent({
   const mapInstanceRef = useRef<atlas.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string>('');
+  const authService = AuthService.getInstance();
 
-  // Initialize Azure Maps with SWA Entra authentication
+  // Function to get authentication token directly from AuthService
+  const getAuthToken = async (): Promise<string> => {
+    try {
+      const token = await authService.getAzureMapsToken();
+      
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+      
+      return token;
+    } catch (error) {
+      console.error('Failed to get Azure Maps token:', error);
+      throw error;
+    }
+  };  // Initialize Azure Maps with Entra authentication directly
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
     const initializeMap = async () => {
       try {
-        console.log('Initializing Azure Maps with SWA Entra authentication');
+        console.log('Getting Azure Maps token from AuthService...');
+        console.log('Azure Client ID:', AZURE_CLIENT_ID);
         
-        // Use SWA authentication - Azure will handle token management automatically
+        if (!AZURE_CLIENT_ID) {
+          throw new Error('VITE_AZURE_CLIENT_ID environment variable is not set');
+        }
+        
+        console.log('Initializing Azure Maps with Entra authentication');
         const map = new atlas.Map(mapRef.current!, {
           center: [-98.5795, 39.8283], // Center of US
           zoom: 4,
           style: 'road',
-          // Azure Maps will automatically use the authenticated user context from SWA
+          authOptions: {
+            authType: atlas.AuthenticationType.aad,
+            clientId: AZURE_CLIENT_ID,
+            getToken: (resolve: (value: string | undefined) => void, reject: (reason?: unknown) => void) => {
+              getAuthToken()
+                .then(token => resolve(token))
+                .catch(error => reject(error));
+            }
+          } as atlas.AuthenticationOptions,
         });
 
         map.events.add('ready', () => {
@@ -55,8 +87,7 @@ export default function MapComponent({
           setMapError(`Map error: ${errorMessage}`);
         });
 
-        mapInstanceRef.current = map;
-      } catch (error) {
+        mapInstanceRef.current = map;} catch (error) {
         console.error('Failed to initialize Azure Maps:', error);
         const errorMessage = error instanceof Error 
           ? error.message 
@@ -216,10 +247,10 @@ export default function MapComponent({
   // Show error if map failed to load
   if (mapError) {
     return (
-      <div className="map-container">
-        <div className="map-error">
+      <div className="map-container">        <div className="map-error">
           <h3>Map Error</h3>
           <p>{mapError}</p>
+          <p>Azure Client ID: {AZURE_CLIENT_ID}</p>
           <p>Check console for more details.</p>
         </div>
       </div>
@@ -249,8 +280,7 @@ export default function MapComponent({
         <div className="legend-item">
           <div className="legend-color legend-color-yellow"></div>
           <span>Low Priority Clients</span>
-        </div>
-      </div>
+        </div>      </div>
     </div>
   );
 }

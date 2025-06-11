@@ -1,4 +1,5 @@
 import type { Address } from '../types';
+import { AuthService } from './authService';
 
 export interface Coordinates {
   latitude: number;
@@ -6,41 +7,40 @@ export interface Coordinates {
 }
 
 /**
- * Geocoding service using Azure Maps with Static Web Apps Entra authentication
- * Uses the authenticated user session automatically managed by SWA
+ * Geocoding service using Azure Maps with Entra authentication
+ * Uses the user's authenticated session from Static Web Apps
  */
 class GeocodingService {
+  private authService: AuthService;
+  private readonly mapsAccountName: string;
+
+  constructor() {
+    this.authService = AuthService.getInstance();
+    this.mapsAccountName = import.meta.env.VITE_AZURE_MAPS_ACCOUNT_NAME || '';
+  }
+
   /**
-   * Geocode an address using Azure Maps Search API with SWA Entra authentication
+   * Geocode an address using Azure Maps Search API with Entra authentication
    */
   async geocodeAddress(address: Address): Promise<Coordinates> {
     try {
-      // Check if user is authenticated by trying to get user info
-      const authResponse = await fetch('/.auth/me');
-      if (!authResponse.ok) {
-        console.warn('User not authenticated, using mock coordinates');
-        return this.getMockCoordinates(address.city, address.state);
-      }
-      
-      const authData = await authResponse.json();
-      if (!authData.clientPrincipal) {
-        console.warn('No user principal found, using mock coordinates');
-        return this.getMockCoordinates(address.city, address.state);
+      // Get the access token for Azure Maps
+      const token = await this.authService.getAzureMapsToken();
+      if (!token) {
+        throw new Error('No authentication token available');
       }
 
       const query = this.formatAddressForGeocoding(address);
       const url = `https://atlas.microsoft.com/search/address/json?api-version=1.0&query=${encodeURIComponent(query)}`;
 
-      // Use SWA's built-in authentication - no manual token management needed
       const response = await fetch(url, {
-        credentials: 'include', // Include SWA auth cookies
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-ms-client-id': this.authService.getClientId(),
+        },
       });
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          console.warn('Authentication failed for Azure Maps, using mock coordinates');
-          return this.getMockCoordinates(address.city, address.state);
-        }
         throw new Error(`Azure Maps API error: ${response.status} ${response.statusText}`);
       }
 
@@ -55,11 +55,13 @@ class GeocodingService {
           longitude: position.lon,
         };
       } else {
+        // Fallback to mock coordinates if no results
         console.warn('No geocoding results found, using mock coordinates');
         return this.getMockCoordinates(address.city, address.state);
       }
     } catch (error) {
       console.error('Geocoding error:', error);
+      // Fallback to mock coordinates on error
       return this.getMockCoordinates(address.city, address.state);
     }
   }
