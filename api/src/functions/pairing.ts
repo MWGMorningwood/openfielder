@@ -153,7 +153,7 @@ async function handleUnpairTherapist(
       };
     }
 
-    await service.unpairTherapistFromClient(body.therapistId);
+    await service.unpairTherapist(body.therapistId);
     context.log(`Unpaired therapist ${body.therapistId}`);
     
     return {

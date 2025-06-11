@@ -5,16 +5,78 @@ export interface Coordinates {
   longitude: number;
 }
 
+/**
+ * Geocoding service using Azure Maps with Static Web Apps Entra authentication
+ * Uses the authenticated user session automatically managed by SWA
+ */
 class GeocodingService {
-  // Mock geocoding for development - in production this would use Azure Maps Search API
+  /**
+   * Geocode an address using Azure Maps Search API with SWA Entra authentication
+   */
   async geocodeAddress(address: Address): Promise<Coordinates> {
-    // For development, return mock coordinates based on city
-    const mockCoordinates = this.getMockCoordinates(address.city, address.state);
+    try {
+      // Check if user is authenticated by trying to get user info
+      const authResponse = await fetch('/.auth/me');
+      if (!authResponse.ok) {
+        console.warn('User not authenticated, using mock coordinates');
+        return this.getMockCoordinates(address.city, address.state);
+      }
+      
+      const authData = await authResponse.json();
+      if (!authData.clientPrincipal) {
+        console.warn('No user principal found, using mock coordinates');
+        return this.getMockCoordinates(address.city, address.state);
+      }
+
+      const query = this.formatAddressForGeocoding(address);
+      const url = `https://atlas.microsoft.com/search/address/json?api-version=1.0&query=${encodeURIComponent(query)}`;
+
+      // Use SWA's built-in authentication - no manual token management needed
+      const response = await fetch(url, {
+        credentials: 'include', // Include SWA auth cookies
+      });
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication failed for Azure Maps, using mock coordinates');
+          return this.getMockCoordinates(address.city, address.state);
+        }
+        throw new Error(`Azure Maps API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const result = data.results[0];
+        const position = result.position;
+        
+        return {
+          latitude: position.lat,
+          longitude: position.lon,
+        };
+      } else {
+        console.warn('No geocoding results found, using mock coordinates');
+        return this.getMockCoordinates(address.city, address.state);
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      return this.getMockCoordinates(address.city, address.state);
+    }
+  }
+
+  /**
+   * Format address for geocoding query
+   */
+  private formatAddressForGeocoding(address: Address): string {
+    const parts = [
+      address.street1,
+      address.street2,
+      address.city,
+      address.state,
+      address.zipCode,
+    ].filter(part => part?.trim());
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    return mockCoordinates;
+    return parts.join(', ');
   }
 
   private getMockCoordinates(city: string, state: string): Coordinates {
@@ -40,51 +102,9 @@ class GeocodingService {
       longitude: -98.5795 + (Math.random() - 0.5) * 20, // Roughly center of US ± 10 degrees
     };
   }
-
-  // In production, this would use Azure Maps Search API
-  async geocodeWithAzureMaps(address: Address, apiKey: string): Promise<Coordinates> {
-    const addressString = this.formatAddressForGeocoding(address);
-    
-    try {
-      const response = await fetch(
-        `https://atlas.microsoft.com/search/address/json?api-version=1.0&subscription-key=${apiKey}&query=${encodeURIComponent(addressString)}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Geocoding request failed');
-      }
-      
-      const data = await response.json();
-      
-      if (data.results && data.results.length > 0) {
-        const result = data.results[0];
-        return {
-          latitude: result.position.lat,
-          longitude: result.position.lon,
-        };
-      } else {
-        throw new Error('No geocoding results found');
-      }
-    } catch (error) {
-      console.error('Azure Maps geocoding error:', error);
-      // Fallback to mock coordinates
-      return this.getMockCoordinates(address.city, address.state);
-    }
-  }
-
-  private formatAddressForGeocoding(address: Address): string {
-    const parts = [
-      address.street1,
-      address.street2,
-      address.city,
-      address.state,
-      address.zipCode,
-    ].filter(part => part?.trim());
-    
-    return parts.join(', ');
-  }
-
-  // Helper method to format address for display
+  /**
+   * Helper method to format address for display
+   */
   formatAddressForDisplay(address: Address): string {
     const parts = [
       address.street1,

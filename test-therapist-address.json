@@ -1,0 +1,15 @@
+{
+  "name": "Dr. Sarah Johnson",
+  "email": "sarah.johnson@example.com",
+  "phone": "(555) 123-4567",
+  "address": {
+    "street1": "123 Main Street",
+    "street2": "Suite 200",
+    "city": "Seattle",
+    "state": "WA",
+    "zipCode": "98101"
+  },
+  "availability": "Monday-Friday 9AM-5PM",
+  "notes": "Specializes in cognitive behavioral therapy",
+  "specializations": ["CBT", "Anxiety", "Depression"]
+}

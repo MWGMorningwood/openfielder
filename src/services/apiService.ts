@@ -1,17 +1,22 @@
 import type { Therapist, Client, CreateTherapistRequest, CreateClientRequest, DistanceCalculation } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7071/api';
-
 /**
  * API service for communicating with Azure Functions backend
+ * Uses Static Web Apps authentication for secure API calls
  */
 export class ApiService {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...options.headers as Record<string, string>,
+    };
+
+    // For Static Web Apps, authentication is handled automatically via cookies
+    // The X-MS-CLIENT-PRINCIPAL header will be added by SWA for authenticated requests
+
+    const response = await fetch(`/api${endpoint}`, {
+      headers,
+      credentials: 'include', // Include cookies for authentication
       ...options,
     });
 

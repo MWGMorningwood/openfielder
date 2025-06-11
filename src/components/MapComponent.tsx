@@ -2,10 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import * as atlas from 'azure-maps-control';
 import type { Therapist, Client } from '../types';
 
-// Azure Maps configuration
-const AZURE_MAPS_KEY = import.meta.env.VITE_AZURE_MAPS_KEY || 'your-azure-maps-key';
-const IS_LOCAL_DEV = AZURE_MAPS_KEY === 'local-development-key';
-
 interface MapComponentProps {
   therapists: Therapist[];
   clients: Client[];
@@ -26,29 +22,55 @@ export default function MapComponent({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<atlas.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string>('');
 
-  // Initialize Azure Maps
+  // Initialize Azure Maps with SWA Entra authentication
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const map = new atlas.Map(mapRef.current, {
-      center: [-98.5795, 39.8283], // Center of US
-      zoom: 4,
-      style: 'road',
-      authOptions: {
-        authType: atlas.AuthenticationType.subscriptionKey,
-        subscriptionKey: AZURE_MAPS_KEY,
-      },
-    });
+    const initializeMap = async () => {
+      try {
+        console.log('Initializing Azure Maps with SWA Entra authentication');
+        
+        // Use SWA authentication - Azure will handle token management automatically
+        const map = new atlas.Map(mapRef.current!, {
+          center: [-98.5795, 39.8283], // Center of US
+          zoom: 4,
+          style: 'road',
+          // Azure Maps will automatically use the authenticated user context from SWA
+        });
 
-    map.events.add('ready', () => {
-      setIsMapReady(true);
-    });
+        map.events.add('ready', () => {
+          console.log('Azure Maps ready!');
+          setIsMapReady(true);
+        });
 
-    mapInstanceRef.current = map;
+        map.events.add('error', (error) => {
+          console.error('Azure Maps error:', error);
+          const errorMessage = error instanceof Error 
+            ? error.message 
+            : typeof error === 'object' 
+              ? `Map error: ${error.constructor?.name || 'Unknown error'}`
+              : String(error);
+          setMapError(`Map error: ${errorMessage}`);
+        });
+
+        mapInstanceRef.current = map;
+      } catch (error) {
+        console.error('Failed to initialize Azure Maps:', error);
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : typeof error === 'object' && error !== null
+            ? `Failed to initialize map: ${error.constructor?.name || 'Unknown error'}`
+            : String(error);
+        setMapError(`Failed to initialize map: ${errorMessage}`);
+      }
+    };
+
+    initializeMap();
 
     return () => {
-      map?.dispose();
+      mapInstanceRef.current?.dispose();
       mapInstanceRef.current = null;
     };
   }, []);
@@ -131,7 +153,11 @@ export default function MapComponent({
         haloColor: 'white',
         haloWidth: 1,
       },
-    });    map.layers.add([therapistLayer, clientLayer]);    // Add click events
+    });
+
+    map.layers.add([therapistLayer, clientLayer]);
+
+    // Add click events
     map.events.add('click', therapistLayer, (e: atlas.MapMouseEvent) => {
       if (e.shapes && e.shapes.length > 0) {
         const shape = e.shapes[0] as atlas.data.Feature<atlas.data.Point, Record<string, unknown>>;
@@ -184,70 +210,17 @@ export default function MapComponent({
           zoom: 12,
         });
       }
-    }  }, [selectedTherapistId, selectedClientId, therapists, clients, isMapReady]);
+    }
+  }, [selectedTherapistId, selectedClientId, therapists, clients, isMapReady]);
 
-  // Render mock map for local development
-  if (IS_LOCAL_DEV) {
+  // Show error if map failed to load
+  if (mapError) {
     return (
       <div className="map-container">
-        <div className="mock-map">
-          <div className="mock-map-header">
-            <h3>Local Development - Mock Map</h3>
-            <p>Azure Maps integration will work when deployed to Azure</p>
-          </div>
-          <div className="mock-map-content">
-            <div className="mock-data-section">
-              <h4>Therapists ({therapists.length})</h4>
-              {therapists.map((therapist) => (
-                <div
-                  key={therapist.id}
-                  className={`mock-pin therapist-pin ${therapist.isPaired ? 'paired' : 'available'} ${
-                    selectedTherapistId === therapist.id ? 'selected' : ''
-                  }`}
-                  onClick={() => onTherapistClick?.(therapist)}
-                >
-                  📍 {therapist.name} - {therapist.address}
-                  {therapist.isPaired && ' (Paired)'}
-                </div>
-              ))}
-            </div>
-            <div className="mock-data-section">
-              <h4>Clients ({clients.length})</h4>
-              {clients.map((client) => (
-                <div
-                  key={client.id}
-                  className={`mock-pin client-pin priority-${client.priority} ${
-                    selectedClientId === client.id ? 'selected' : ''
-                  }`}
-                  onClick={() => onClientClick?.(client)}
-                >
-                  📍 {client.name} - {client.address} ({client.priority} priority)
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="map-legend">
-          <div className="legend-item">
-            <div className="legend-color legend-color-blue"></div>
-            <span>Available Therapists</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-color legend-color-green"></div>
-            <span>Paired Therapists</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-color legend-color-red"></div>
-            <span>High Priority Clients</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-color legend-color-orange"></div>
-            <span>Medium Priority Clients</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-color legend-color-yellow"></div>
-            <span>Low Priority Clients</span>
-          </div>
+        <div className="map-error">
+          <h3>Map Error</h3>
+          <p>{mapError}</p>
+          <p>Check console for more details.</p>
         </div>
       </div>
     );

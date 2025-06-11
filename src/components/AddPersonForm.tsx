@@ -306,8 +306,11 @@ export default function AddPersonForm({
                 <div className="specializations-list">
                   {formData.specializations?.map((spec, index) => (
                     <span key={index} className="specialization-tag">
-                      {spec}
-                      <button type="button" onClick={() => handleRemoveSpecialization(index)}>
+                      {spec}                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveSpecialization(index)}
+                        title={`Remove ${spec}`}
+                      >
                         <X size={12} />
                       </button>
                     </span>

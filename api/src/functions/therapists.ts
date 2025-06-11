@@ -27,11 +27,12 @@ export async function therapistsFunction(request: HttpRequest, context: Invocati
           status: 405,
           jsonBody: { error: 'Method not allowed' }
         };
-    }  } catch (error: any) {
+    }  } catch (error: unknown) {
     context.log('Error in therapists function:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       status: 500,
-      jsonBody: { error: 'Internal server error', details: error.message }
+      jsonBody: { error: 'Internal server error', details: message }
     };
   }
 }
@@ -50,11 +51,12 @@ async function handleGetTherapists(service: OpenFielderService, context: Invocat
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
       }
-    };  } catch (error: any) {
+    };  } catch (error: unknown) {
     context.log('Error getting therapists:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       status: 500,
-      jsonBody: { error: 'Failed to retrieve therapists', details: error.message }
+      jsonBody: { error: 'Failed to retrieve therapists', details: message }
     };
   }
 }
@@ -68,17 +70,27 @@ async function handleCreateTherapist(
     // Debug: log the request method and content type
     context.log(`Request method: ${request.method}`);
     context.log(`Content-Type: ${request.headers.get('content-type')}`);
-    
-    const body = await request.json() as CreateTherapistRequest;
+      const body = await request.json() as CreateTherapistRequest;
     context.log(`Parsed body:`, body);
     
     // Validate required fields
-    if (!body.name || !body.latitude || !body.longitude || !body.address || !body.availability) {
+    if (!body.name || !body.address || !body.availability) {
       return {
         status: 400,
         jsonBody: { 
           error: 'Missing required fields', 
-          required: ['name', 'latitude', 'longitude', 'address', 'availability'] 
+          required: ['name', 'address', 'availability'] 
+        }
+      };
+    }
+
+    // Validate address structure
+    if (!body.address.street1 || !body.address.city || !body.address.state || !body.address.zipCode) {
+      return {
+        status: 400,
+        jsonBody: {
+          error: 'Invalid address',
+          details: 'Address must include street1, city, state, and zipCode'
         }
       };
     }
@@ -95,11 +107,12 @@ async function handleCreateTherapist(
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
       }
-    };  } catch (error: any) {
+    };  } catch (error: unknown) {
     context.log('Error creating therapist:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       status: 500,
-      jsonBody: { error: 'Failed to create therapist', details: error.message }
+      jsonBody: { error: 'Failed to create therapist', details: message }
     };
   }
 }

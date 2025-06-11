@@ -7,8 +7,7 @@ import {
   CreateClientRequest,
   UpdateTherapistRequest,
   UpdateClientRequest,
-  DistanceCalculation,
-  Address
+  DistanceCalculation
 } from '../types';
 import { TableStorageService } from './tableStorage';
 import { geocodingService } from './geocodingService';

@@ -27,12 +27,12 @@ export async function clientsFunction(request: HttpRequest, context: InvocationC
           status: 405,
           jsonBody: { error: 'Method not allowed' }
         };
-    }
-  } catch (error: any) {
+    }  } catch (error: unknown) {
     context.log('Error in clients function:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       status: 500,
-      jsonBody: { error: 'Internal server error', details: error.message }
+      jsonBody: { error: 'Internal server error', details: message }
     };
   }
 }
@@ -51,12 +51,12 @@ async function handleGetClients(service: OpenFielderService, context: Invocation
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
       }
-    };
-  } catch (error: any) {
+    };  } catch (error: unknown) {
     context.log('Error getting clients:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       status: 500,
-      jsonBody: { error: 'Failed to retrieve clients', details: error.message }
+      jsonBody: { error: 'Failed to retrieve clients', details: message }
     };
   }
 }
@@ -65,17 +65,27 @@ async function handleCreateClient(
   service: OpenFielderService, 
   request: HttpRequest, 
   context: InvocationContext
-): Promise<HttpResponseInit> {
-  try {
+): Promise<HttpResponseInit> {  try {
     const body = await request.json() as CreateClientRequest;
     
     // Validate required fields
-    if (!body.name || !body.latitude || !body.longitude || !body.address || !body.priority) {
+    if (!body.name || !body.address || !body.priority) {
       return {
         status: 400,
         jsonBody: { 
           error: 'Missing required fields', 
-          required: ['name', 'latitude', 'longitude', 'address', 'priority'] 
+          required: ['name', 'address', 'priority'] 
+        }
+      };
+    }
+
+    // Validate address structure
+    if (!body.address.street1 || !body.address.city || !body.address.state || !body.address.zipCode) {
+      return {
+        status: 400,
+        jsonBody: {
+          error: 'Invalid address',
+          details: 'Address must include street1, city, state, and zipCode'
         }
       };
     }
@@ -92,12 +102,12 @@ async function handleCreateClient(
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
       }
-    };
-  } catch (error: any) {
+    };  } catch (error: unknown) {
     context.log('Error creating client:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return {
       status: 500,
-      jsonBody: { error: 'Failed to create client', details: error.message }
+      jsonBody: { error: 'Failed to create client', details: message }
     };
   }
 }

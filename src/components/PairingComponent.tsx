@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, MapPin, Clock, User, Phone, Mail, X } from 'lucide-react';
 import type { Client, Therapist, DistanceCalculation } from '../types';
 import { apiService } from '../services/apiService';
+import { geocodingService } from '../services/geocodingService';
 
 interface PairingComponentProps {
   client: Client;
@@ -89,7 +90,7 @@ export default function PairingComponent({
             </h3>
             <div className="client-details">
               <p><strong>Name:</strong> {client.name}</p>
-              <p><strong>Address:</strong> {client.address}</p>
+              <p><strong>Address:</strong> {geocodingService.formatAddressForDisplay(client.address)}</p>
               <p><strong>Priority:</strong> 
                 <span className={`priority-badge priority-${client.priority}`}>
                   {client.priority.toUpperCase()}
@@ -155,10 +156,9 @@ export default function PairingComponent({
                         </div>
                       </div>
                       
-                      <div className="therapist-details">
-                        <p>
+                      <div className="therapist-details">                        <p>
                           <MapPin size={14} />
-                          {therapist.address}
+                          {geocodingService.formatAddressForDisplay(therapist.address)}
                         </p>
                         
                         <p>

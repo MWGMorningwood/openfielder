@@ -1,4 +1,5 @@
 import type { Address } from '../types';
+import { DefaultAzureCredential } from '@azure/identity';
 
 export interface Coordinates {
   latitude: number;
@@ -7,17 +8,120 @@ export interface Coordinates {
 
 /**
  * Geocoding service for converting addresses to coordinates
- * Uses mock data for development, can be extended for Azure Maps in production
+ * Uses Azure Maps with Entra Authentication in production, mock data for local development
  */
 export class GeocodingService {
+  private credential: DefaultAzureCredential | null = null;
+  private mapsClientId: string | null = null;
+
+  constructor() {
+    // Initialize Azure credentials for production
+    this.initializeAzureAuth();
+  }
+
+  /**
+   * Initialize Azure authentication
+   */
+  private initializeAzureAuth(): void {
+    try {
+      // Only initialize in Azure environment (when AZURE_MAPS_CLIENT_ID is present)
+      this.mapsClientId = process.env.AZURE_MAPS_CLIENT_ID || null;
+      
+      if (this.mapsClientId) {
+        this.credential = new DefaultAzureCredential();
+        console.log('Azure Maps Entra authentication initialized');
+      } else {
+        console.log('Running in local development mode - using mock geocoding');
+      }
+    } catch (error) {
+      console.warn('Failed to initialize Azure authentication, falling back to mock:', error);
+      this.credential = null;
+      this.mapsClientId = null;
+    }
+  }
+
   /**
    * Convert an address to coordinates
    * @param address The address to geocode
    * @returns Promise resolving to coordinates
    */
   public async geocodeAddress(address: Address): Promise<Coordinates> {
-    // For development, return mock coordinates based on city/state
+    // Use Azure Maps in production if credentials are available
+    if (this.credential && this.mapsClientId) {
+      try {
+        return await this.geocodeWithAzureMapsEntra(address);
+      } catch (error) {
+        console.warn('Azure Maps geocoding failed, falling back to mock:', error);
+      }
+    }
+    
+    // For development or fallback, return mock coordinates based on city/state
     return this.getMockCoordinates(address.city, address.state);
+  }
+
+  /**
+   * Get access token for Azure Maps using managed identity
+   */
+  private async getAccessToken(): Promise<string> {
+    if (!this.credential) {
+      throw new Error('Azure credentials not initialized');
+    }
+
+    const tokenResponse = await this.credential.getToken('https://atlas.microsoft.com/.default');
+    if (!tokenResponse) {
+      throw new Error('Failed to get access token');
+    }
+
+    return tokenResponse.token;
+  }
+
+  /**
+   * Geocode address using Azure Maps with Entra Authentication
+   * @param address Address to geocode
+   * @returns Promise resolving to coordinates
+   */
+  private async geocodeWithAzureMapsEntra(address: Address): Promise<Coordinates> {
+    const addressString = this.formatAddressForGeocoding(address);
+    const accessToken = await this.getAccessToken();
+    
+    try {
+      const response = await fetch(
+        `https://atlas.microsoft.com/search/address/json?api-version=1.0&query=${encodeURIComponent(addressString)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Azure Maps API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json() as {
+        results?: Array<{
+          position: {
+            lat: number;
+            lon: number;
+          };
+        }>;
+      };
+      
+      if (data.results && data.results.length > 0) {
+        const result = data.results[0];
+        console.log(`Geocoded "${addressString}" to ${result.position.lat}, ${result.position.lon}`);
+        return {
+          latitude: result.position.lat,
+          longitude: result.position.lon,
+        };
+      } else {
+        throw new Error('No geocoding results found');
+      }
+    } catch (error) {
+      console.error('Azure Maps geocoding error:', error);
+      throw error; // Re-throw so caller can decide on fallback
+    }
   }
 
   /**
@@ -152,7 +256,6 @@ export class GeocodingService {
     const streetAddress = parts.join(' ');
     return `${streetAddress}, ${address.city}, ${address.state} ${address.zipCode}`;
   }
-
   /**
    * Format address object for geocoding API calls
    * @param address Address object
@@ -165,45 +268,9 @@ export class GeocodingService {
       address.city,
       address.state,
       address.zipCode,
-    ].filter(part => part?.trim());
+        ].filter(part => part?.trim());
     
     return parts.join(', ');
-  }
-
-  /**
-   * Future method for using Azure Maps Search API in production
-   * @param address Address to geocode
-   * @param apiKey Azure Maps API key
-   * @returns Promise resolving to coordinates
-   */
-  public async geocodeWithAzureMaps(address: Address, apiKey: string): Promise<Coordinates> {
-    const addressString = this.formatAddressForGeocoding(address);
-    
-    try {
-      const response = await fetch(
-        `https://atlas.microsoft.com/search/address/json?api-version=1.0&subscription-key=${apiKey}&query=${encodeURIComponent(addressString)}`
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Azure Maps API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.results && data.results.length > 0) {
-        const result = data.results[0];
-        return {
-          latitude: result.position.lat,
-          longitude: result.position.lon,
-        };
-      } else {
-        throw new Error('No geocoding results found');
-      }
-    } catch (error) {
-      console.error('Azure Maps geocoding error:', error);
-      // Fallback to mock coordinates
-      return this.getMockCoordinates(address.city, address.state);
-    }
   }
 }
 

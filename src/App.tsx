@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, MapPin, RefreshCw, ArrowRight } from 'lucide-react';
+import { Users, UserPlus, MapPin, RefreshCw, ArrowRight, List, Map } from 'lucide-react';
 import MapComponent from './components/MapComponent';
 import AddPersonForm from './components/AddPersonForm';
 import PairingComponent from './components/PairingComponent';
+import { AuthWrapper } from './components/AuthWrapper';
+import { AuthService } from './services/authService';
 import type { Therapist, Client, CreateTherapistRequest, CreateClientRequest } from './types';
 import { apiService } from './services/apiService';
+import { geocodingService } from './services/geocodingService';
 import './App.css';
+
 
 function App() {
   const [therapists, setTherapists] = useState<Therapist[]>([]);
@@ -16,6 +20,8 @@ function App() {
   const [selectedTherapistId, setSelectedTherapistId] = useState<string>('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'list' | 'map'>('list');
+  const authService = AuthService.getInstance();
 
   useEffect(() => {
     loadData();
@@ -128,8 +134,9 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <header className="app-header">
+    <AuthWrapper>
+      <div className="app">
+        <header className="app-header">
         <div className="header-left">
           <h1>
             <MapPin size={24} />
@@ -157,6 +164,23 @@ function App() {
           </div>
         </div>
 
+        <div className="header-tabs">
+          <button 
+            onClick={() => setActiveTab('list')}
+            className={`tab-button ${activeTab === 'list' ? 'active' : ''}`}
+          >
+            <List size={16} />
+            List View
+          </button>
+          <button 
+            onClick={() => setActiveTab('map')}
+            className={`tab-button ${activeTab === 'map' ? 'active' : ''}`}
+          >
+            <Map size={16} />
+            Map View
+          </button>
+        </div>
+
         <div className="header-actions">
           <button 
             onClick={() => setShowAddForm('therapist')}
@@ -176,99 +200,114 @@ function App() {
             <RefreshCw size={16} />
             Refresh
           </button>
+          <button onClick={() => authService.logout()} className="logout-button">
+            Sign Out
+          </button>
         </div>
       </header>
 
       <div className="app-content">
-        <div className="sidebar">
-          <div className="sidebar-section">
-            <h3>
-              <UserPlus size={16} />
-              Therapists ({therapists.length})
-            </h3>
-            <div className="person-list">
-              {therapists.map((therapist) => (
-                <div 
-                  key={therapist.id}
-                  className={`person-card therapist-card ${selectedTherapistId === therapist.id ? 'selected' : ''} ${therapist.isPaired ? 'paired' : ''}`}
-                  onClick={() => handleTherapistClick(therapist)}
-                >
-                  <div className="person-header">
-                    <span className="person-name">{therapist.name}</span>
-                    <span className={`status-indicator ${therapist.isPaired ? 'paired' : 'available'}`}>
-                      {therapist.isPaired ? 'Paired' : 'Available'}
-                    </span>
+        {activeTab === 'list' ? (
+          <div className="sidebar full-width">
+            <div className="sidebar-section">
+              <h3>
+                <UserPlus size={16} />
+                Therapists ({therapists.length})
+              </h3>
+              <div className="person-list">
+                {therapists.map((therapist) => (
+                  <div 
+                    key={therapist.id}
+                    className={`person-card therapist-card ${selectedTherapistId === therapist.id ? 'selected' : ''} ${therapist.isPaired ? 'paired' : ''}`}
+                    onClick={() => handleTherapistClick(therapist)}
+                  >
+                    <div className="person-header">
+                      <span className="person-name">{therapist.name}</span>
+                      <span className={`status-indicator ${therapist.isPaired ? 'paired' : 'available'}`}>
+                        {therapist.isPaired ? 'Paired' : 'Available'}
+                      </span>
+                    </div>
+                    <div className="person-details">
+                      <p className="person-address">{geocodingService.formatAddressForDisplay(therapist.address)}</p>
+                      <p className="person-availability">{therapist.availability}</p>
+                      {therapist.specializations && therapist.specializations.length > 0 && (
+                        <div className="specializations">
+                          {therapist.specializations.slice(0, 2).map((spec, index) => (
+                            <span key={index} className="specialization-tag">{spec}</span>
+                          ))}
+                          {therapist.specializations.length > 2 && (
+                            <span className="specialization-tag">+{therapist.specializations.length - 2}</span>
+                          )}
+                        </div>
+                      )}
+                      {therapist.isPaired && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnpairTherapist(therapist);
+                          }}
+                          className="unpair-button"
+                        >
+                          Unpair
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="person-details">
-                    <p className="person-address">{therapist.address}</p>
-                    <p className="person-availability">{therapist.availability}</p>
-                    {therapist.isPaired && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleUnpairTherapist(therapist);
-                        }}
-                        className="unpair-button"
-                      >
-                        Unpair
-                      </button>
-                    )}
+                ))}
+              </div>
+            </div>
+
+            <div className="sidebar-section">
+              <h3>
+                <Users size={16} />
+                Clients ({clients.length})
+              </h3>
+              <div className="person-list">
+                {clients.map((client) => (
+                  <div 
+                    key={client.id}
+                    className={`person-card client-card ${selectedClientId === client.id ? 'selected' : ''} priority-${client.priority}`}
+                    onClick={() => handleClientClick(client)}
+                  >
+                    <div className="person-header">
+                      <span className="person-name">{client.name}</span>
+                      <span className={`priority-badge priority-${client.priority}`}>
+                        {client.priority.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="person-details">
+                      <p className="person-address">{geocodingService.formatAddressForDisplay(client.address)}</p>
+                      <p className="person-status">Status: {client.status}</p>
+                      {client.status === 'active' && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePairClient(client);
+                          }}
+                          className="pair-button"
+                        >
+                          <ArrowRight size={14} />
+                          Find Therapist
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-
-          <div className="sidebar-section">
-            <h3>
-              <Users size={16} />
-              Clients ({clients.length})
-            </h3>
-            <div className="person-list">
-              {clients.map((client) => (
-                <div 
-                  key={client.id}
-                  className={`person-card client-card ${selectedClientId === client.id ? 'selected' : ''} priority-${client.priority}`}
-                  onClick={() => handleClientClick(client)}
-                >
-                  <div className="person-header">
-                    <span className="person-name">{client.name}</span>
-                    <span className={`priority-badge priority-${client.priority}`}>
-                      {client.priority.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="person-details">
-                    <p className="person-address">{client.address}</p>
-                    <p className="person-status">Status: {client.status}</p>
-                    {client.status === 'active' && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePairClient(client);
-                        }}
-                        className="pair-button"
-                      >
-                        <ArrowRight size={14} />
-                        Find Therapist
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        ) : (
+          <div className="map-area">
+            <MapComponent
+              therapists={therapists}
+              clients={clients}
+              onTherapistClick={handleTherapistClick}
+              onClientClick={handleClientClick}
+              selectedTherapistId={selectedTherapistId}
+              selectedClientId={selectedClientId}
+            />
           </div>
-        </div>
-
-        <div className="map-area">
-          <MapComponent
-            therapists={therapists}
-            clients={clients}
-            onTherapistClick={handleTherapistClick}
-            onClientClick={handleClientClick}
-            selectedTherapistId={selectedTherapistId}
-            selectedClientId={selectedClientId}
-          />
-        </div>
+        )}
       </div>
 
       {showAddForm && (
@@ -295,6 +334,7 @@ function App() {
         />
       )}
     </div>
+    </AuthWrapper>
   );
 }
 
