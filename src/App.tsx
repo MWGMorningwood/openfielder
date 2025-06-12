@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Users, UserPlus, MapPin, RefreshCw, ArrowRight, List, Map } from 'lucide-react';
-import MapComponent from './components/MapComponent';
+import MapComponent from './components/MapComponentNew';
 import AddPersonForm from './components/AddPersonForm';
 import PairingComponent from './components/PairingComponent';
 import { AuthWrapper } from './components/AuthWrapper';
+import { ErrorProvider } from './contexts/ErrorContext';
+import ErrorModals from './components/ErrorModal';
 import { AuthService } from './services/authService';
 import type { Therapist, Client, CreateTherapistRequest, CreateClientRequest } from './types';
 import { apiService } from './services/apiService';
@@ -134,9 +136,11 @@ function App() {
   }
 
   return (
-    <AuthWrapper>
-      <div className="app">
-        <header className="app-header">
+    <ErrorProvider>
+      <AuthWrapper>
+        <div className="app">
+          {/* ...existing app content... */}
+          <header className="app-header">
         <div className="header-left">
           <h1>
             <MapPin size={24} />
@@ -331,10 +335,13 @@ function App() {
           therapists={therapists}
           onPairSuccess={handlePairSuccess}
           onClose={() => setShowPairingModal(null)}
-        />
-      )}
-    </div>
-    </AuthWrapper>
+        />        )}
+
+        {/* Error Modals */}
+        <ErrorModals />
+      </div>
+      </AuthWrapper>
+    </ErrorProvider>
   );
 }
 

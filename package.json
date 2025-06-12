@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@types/uuid": "^10.0.0",
     "azure-maps-control": "^3.6.1",
     "lucide-react": "^0.513.0",
     "react": "^19.1.0",
@@ -21,11 +20,14 @@
     "@eslint/js": "^9.25.0",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.4.1",
+    "css-loader": "^7.1.2",
     "eslint": "^9.25.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "style-loader": "^4.0.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5"

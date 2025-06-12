@@ -13,8 +13,6 @@ export interface Therapist {
   name: string;
   email?: string;
   phone?: string;
-  latitude: number; // Internal use only - not exposed in UI
-  longitude: number; // Internal use only - not exposed in UI
   address: Address;
   isPaired: boolean;
   clientId?: string;
@@ -30,8 +28,6 @@ export interface Client {
   name: string;
   email?: string;
   phone?: string;
-  latitude: number; // Internal use only - not exposed in UI
-  longitude: number; // Internal use only - not exposed in UI
   address: Address;
   therapistId?: string;
   needsAssessment?: string;
@@ -47,6 +43,22 @@ export interface DistanceCalculation {
   distance: number;
   therapistName: string;
   clientName: string;
+}
+
+// Extended interfaces for when coordinates are needed
+export interface TherapistWithCoordinates extends Therapist {
+  latitude: number;
+  longitude: number;
+}
+
+export interface ClientWithCoordinates extends Client {
+  latitude: number;
+  longitude: number;
+}
+
+export interface Coordinates {
+  latitude: number;
+  longitude: number;
 }
 
 export interface CreateTherapistRequest {
@@ -73,3 +85,6 @@ export interface ApiResponse<T> {
   error?: string;
   details?: string;
 }
+
+// Export error-related types
+export * from './types/errorTypes';

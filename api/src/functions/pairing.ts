@@ -64,17 +64,28 @@ async function handleGetNearestTherapists(
         status: 400,
         jsonBody: { error: 'Client ID is required' }
       };
-    }
-
-    const url = new URL(request.url);
+    }    const url = new URL(request.url);
     const maxResults = parseInt(url.searchParams.get('limit') || '10');
 
-    const nearestTherapists = await service.findNearestTherapists(clientId, maxResults);
-    context.log(`Found ${nearestTherapists.length} nearest therapists for client ${clientId}`);
+    // Since we no longer store coordinates, distance calculation is done in frontend
+    // This endpoint returns available therapists without distance sorting
+    const allTherapists = await service.getAllTherapists();
+    const availableTherapists = allTherapists.filter(t => !t.isPaired).slice(0, maxResults);
+    
+    context.log(`Found ${availableTherapists.length} available therapists for client ${clientId}`);
     
     return {
       status: 200,
-      jsonBody: { nearestTherapists },
+      jsonBody: { 
+        message: 'Distance calculation is now handled in frontend with on-demand geocoding',
+        availableTherapists: availableTherapists.map(t => ({
+          therapistId: t.id,
+          clientId: clientId,
+          distance: 0, // Distance calculated in frontend
+          therapistName: t.name,
+          clientName: 'Unknown' // Would need client lookup for name
+        }))
+      },
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',

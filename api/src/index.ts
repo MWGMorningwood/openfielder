@@ -17,11 +17,4 @@ import './functions/therapists';
 import './functions/clients';
 import './functions/pairing';
 import './functions/getMapsToken';
-
-console.log('OpenFielder API - Azure Functions initialized');
-console.log('Available endpoints:');
-console.log('  - GET/POST /api/therapists');
-console.log('  - GET/POST /api/clients');
-console.log('  - GET /api/pairing/nearest/{clientId}');
-console.log('  - POST /api/pairing/pair');
-console.log('  - POST /api/pairing/unpair');
+import './functions/geocode';

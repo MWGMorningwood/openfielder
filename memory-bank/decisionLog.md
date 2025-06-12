@@ -143,10 +143,63 @@
 - Redis Cache: Added complexity for current scale
 - No caching: Poor performance and higher costs
 
+#### Geocoding API Update (June 12, 2025)
+**Decision**: Migrate to Azure Maps Geocoding API 2025-01-01  
+**Rationale**:
+- Old Search API (v1.0) was deprecated and causing 500 errors
+- New Geocoding API provides better accuracy and performance
+- GeoJSON response format aligns with modern standards
+- Enhanced error handling and retry logic with exponential backoff
+- Proper Azure authentication integration with DefaultAzureCredential
+
+**Technical Implementation**:
+- Updated backend to use `https://atlas.microsoft.com/geocode?api-version=2025-01-01`
+- Added intelligent retry logic for transient failures
+- Enhanced error handling with specific error codes and messages
+- Improved logging for debugging authentication and API issues
+- Proper GeoJSON parsing with longitude/latitude coordinate extraction
+
+**Alternatives Considered**:
+- Continue with deprecated Search API: Risk of service interruption
+- Third-party geocoding service: Additional cost and integration complexity
+- Client-side only geocoding: Security and rate limiting concerns
+
+#### Map Component Timing Resolution (June 12, 2025)
+**Decision**: Promise-based map readiness with delay buffer  
+**Rationale**:
+- Azure Maps requires sources be added only after map is fully initialized
+- React useEffect timing conflicts with Azure Maps ready event
+- Added 1-second delay buffer after map ready promise resolves
+- Prevents "map is not ready" errors when adding data sources
+
+**Technical Implementation**:
+- Created `mapReadyPromiseRef` for proper async coordination
+- Added source/layer validation before attempting to add to map
+- Implemented robust error handling with try-catch blocks
+- Enhanced logging for debugging map initialization issues
+
+**Alternatives Considered**:
+- Immediate source addition: Causes timing errors
+- Multiple retry attempts: Adds complexity without addressing root cause
+- Event-driven approach only: Insufficient for React lifecycle coordination
+
+#### Error Handling Enhancement (June 12, 2025)
+**Decision**: Comprehensive error boundaries with specific error types  
+**Rationale**:
+- Frontend needs graceful degradation for service failures
+- Users require clear feedback for different error scenarios
+- Debugging requires detailed error context and logging
+
+**Technical Implementation**:
+- Added ErrorContext for global error state management
+- Created ErrorModal component for user-friendly error display
+- Implemented specific error types (geocoding, authentication, rate limiting)
+- Enhanced API error responses with appropriate HTTP status codes
+
 ## Future Decisions Needed
 - [ ] Database migration strategy for scale
 - [ ] Monitoring and alerting configuration
 - [ ] Backup and disaster recovery approach
 - [ ] Multi-region deployment strategy
 
-Last Updated: June 11, 2025
+Last Updated: June 12, 2025

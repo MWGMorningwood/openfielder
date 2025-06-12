@@ -13,8 +13,6 @@ export interface Therapist {
   name: string;
   email?: string;
   phone?: string;
-  latitude: number;
-  longitude: number;
   address: Address;
   isPaired: boolean;
   clientId?: string;
@@ -30,8 +28,6 @@ export interface Client {
   name: string;
   email?: string;
   phone?: string;
-  latitude: number;
-  longitude: number;
   address: Address;
   therapistId?: string;
   needsAssessment?: string;
@@ -48,8 +44,6 @@ export interface TherapistTableEntity {
   name: string;
   email?: string;
   phone?: string;
-  latitude: number;
-  longitude: number;
   address: string; // JSON string of Address object
   isPaired: boolean;
   clientId?: string;
@@ -67,8 +61,6 @@ export interface ClientTableEntity {
   name: string;
   email?: string;
   phone?: string;
-  latitude: number;
-  longitude: number;
   address: string; // JSON string of Address object
   therapistId?: string;
   needsAssessment?: string;

@@ -303,10 +303,10 @@ export default function AddPersonForm({
                     Add
                   </button>
                 </div>
-                <div className="specializations-list">
-                  {formData.specializations?.map((spec, index) => (
+                <div className="specializations-list">                  {formData.specializations?.map((spec, index) => (
                     <span key={index} className="specialization-tag">
-                      {spec}                      <button 
+                      {spec}
+                      <button 
                         type="button" 
                         onClick={() => handleRemoveSpecialization(index)}
                         title={`Remove ${spec}`}
@@ -332,11 +332,12 @@ export default function AddPersonForm({
                 />
               </div>
             </>
-          )}
-
-          {type === 'client' && (
+          )}          {type === 'client' && (
             <>              <div className="form-group">
-                <label htmlFor="priority">Priority *</label>
+                <label htmlFor="priority">
+                  <Tag size={16} />
+                  Priority *
+                </label>
                 <select
                   id="priority"
                   name="priority"

@@ -30,6 +30,21 @@ dist-ssr
 # Azure Functions localsettings file
 local.settings.json
 
+### Azurite ###
+# Azurite queue
+__queuestorage__
+__azurite_db_queue__.json
+__azurite_db_queue_extent__.json
+
+# Azurite blob
+__blobstorage__
+__azurite_db_blob__.json
+__azurite_db_blob_extent__.json
+
+# Azurite table
+__azurite_db_table__.json
+__azurite_db_table_extent__.json
+
 ### react ###
 .DS_*
 *.log
@@ -65,6 +80,9 @@ sketch
 .history
 .ionide
 
-# End of https://www.toptal.com/developers/gitignore/api/react,visualstudiocode,azurefunctions
+# End of https://www.toptal.com/developers/gitignore/api/react,azurefunctions,azurite,visualstudiocode
 __azurite_db_table__.json
 AzuriteConfig
+__azurite_db_blob__.json
+__azurite_db_blob_extent__.json
+__azurite_db_table__.json

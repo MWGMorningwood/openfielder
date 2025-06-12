@@ -8,240 +8,278 @@ export interface Coordinates {
 
 /**
  * Geocoding service for converting addresses to coordinates
- * Uses Azure Maps with Entra Authentication in production, mock data for local development
+ * Uses Azure Maps with Entra ID authentication (DefaultAzureCredential only)
  */
 export class GeocodingService {
-  private credential: DefaultAzureCredential | null = null;
-  private mapsClientId: string | null = null;
-
+  private credential: DefaultAzureCredential;
+  private mapsClientId: string;
   constructor() {
-    // Initialize Azure credentials for production
-    this.initializeAzureAuth();
-  }
+    console.log('🔧 Initializing GeocodingService...');
+    
+    // Get Azure Maps client ID from environment
+    this.mapsClientId = process.env.AZURE_MAPS_CLIENT_ID || '';
+    
+    console.log('📋 Configuration check:', {
+      mapsClientId: this.mapsClientId ? '✅ Set' : '❌ Missing',
+      nodeEnv: process.env.NODE_ENV || 'undefined',
+      azureClientId: process.env.AZURE_CLIENT_ID ? '✅ Set' : '❌ Missing',
+      azureTenantId: process.env.AZURE_TENANT_ID ? '✅ Set' : '❌ Missing'
+    });
 
-  /**
-   * Initialize Azure authentication
-   */
-  private initializeAzureAuth(): void {
-    try {
-      // Only initialize in Azure environment (when AZURE_MAPS_CLIENT_ID is present)
-      this.mapsClientId = process.env.AZURE_MAPS_CLIENT_ID || null;
-      
-      if (this.mapsClientId) {
-        this.credential = new DefaultAzureCredential();
-        console.log('Azure Maps Entra authentication initialized');
-      } else {
-        console.log('Running in local development mode - using mock geocoding');
-      }
-    } catch (error) {
-      console.warn('Failed to initialize Azure authentication, falling back to mock:', error);
-      this.credential = null;
-      this.mapsClientId = null;
+    if (!this.mapsClientId) {
+      throw new Error('AZURE_MAPS_CLIENT_ID environment variable is required');
     }
-  }
 
-  /**
+    // Initialize DefaultAzureCredential only
+    try {
+      this.credential = new DefaultAzureCredential({
+        // Enable additional logging for debugging
+        loggingOptions: {
+          allowLoggingAccountIdentifiers: true
+        }
+      });
+      console.log('✅ DefaultAzureCredential initialized');
+    } catch (credError) {
+      console.error('❌ Failed to initialize DefaultAzureCredential:', credError);
+      throw new Error(`Failed to initialize Azure credentials: ${credError instanceof Error ? credError.message : String(credError)}`);
+    }
+  }/**
    * Convert an address to coordinates
    * @param address The address to geocode
    * @returns Promise resolving to coordinates
    */
   public async geocodeAddress(address: Address): Promise<Coordinates> {
-    // Use Azure Maps in production if credentials are available
-    if (this.credential && this.mapsClientId) {
-      try {
-        return await this.geocodeWithAzureMapsEntra(address);
-      } catch (error) {
-        console.warn('Azure Maps geocoding failed, falling back to mock:', error);
-      }
+    // Ensure Azure Maps credentials are available
+    if (!this.mapsClientId) {
+      throw new Error('Azure Maps client ID not configured. Please set AZURE_MAPS_CLIENT_ID environment variable.');
     }
-    
-    // For development or fallback, return mock coordinates based on city/state
-    return this.getMockCoordinates(address.city, address.state);
-  }
-
-  /**
-   * Get access token for Azure Maps using managed identity
-   */
-  private async getAccessToken(): Promise<string> {
-    if (!this.credential) {
-      throw new Error('Azure credentials not initialized');
-    }
-
-    const tokenResponse = await this.credential.getToken('https://atlas.microsoft.com/.default');
-    if (!tokenResponse) {
-      throw new Error('Failed to get access token');
-    }
-
-    return tokenResponse.token;
-  }
-
-  /**
-   * Geocode address using Azure Maps with Entra Authentication
-   * @param address Address to geocode
-   * @returns Promise resolving to coordinates
-   */
-  private async geocodeWithAzureMapsEntra(address: Address): Promise<Coordinates> {
-    const addressString = this.formatAddressForGeocoding(address);
-    const accessToken = await this.getAccessToken();
     
     try {
-      const response = await fetch(
-        `https://atlas.microsoft.com/search/address/json?api-version=1.0&query=${encodeURIComponent(addressString)}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const coordinates = await this.retryOperation(() => this.geocodeWithAzureMaps(address));
+      console.log(`Successfully geocoded "${this.formatAddressForDisplay(address)}" to ${coordinates.latitude}, ${coordinates.longitude}`);
+      return coordinates;
+    } catch (error) {
+      const addressStr = this.formatAddressForDisplay(address);
+      console.error(`Failed to geocode address "${addressStr}":`, error);
+      throw new Error(`Failed to geocode address "${addressStr}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }  /**
+   * Get access token for Azure Maps using DefaultAzureCredential only
+   */
+  private async getAccessToken(): Promise<string> {
+    try {
+      console.log('🔐 Attempting to get Azure access token using DefaultAzureCredential...');
       
-      if (!response.ok) {
-        throw new Error(`Azure Maps API error: ${response.status} ${response.statusText}`);
+      // Try different scopes for Azure Maps
+      const scopes = [
+        'https://atlas.microsoft.com/.default',
+        'https://atlas.microsoft.com/user_impersonation',
+        'https://management.azure.com/.default'
+      ];
+      
+      for (const scope of scopes) {
+        try {
+          console.log(`🔍 Trying scope: ${scope}`);
+          const tokenResponse = await this.credential.getToken(scope);
+          
+          if (tokenResponse && tokenResponse.token) {
+            console.log(`✅ Successfully obtained access token with scope: ${scope}`);
+            console.log(`   Token expires: ${new Date(tokenResponse.expiresOnTimestamp).toISOString()}`);
+            return tokenResponse.token;
+          }
+        } catch (scopeError) {
+          console.log(`❌ Failed with scope ${scope}:`, scopeError);
+          continue;
+        }
       }
       
+      throw new Error('Failed to get access token with any scope');
+    } catch (error) {
+      console.error('❌ Failed to get Azure access token:', error);
+      console.error('💡 Ensure you are logged in via Azure CLI or have proper managed identity configured');
+      throw new Error(`Authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  /**
+   * Retry logic for geocoding requests with exponential backoff and jitter
+   * @param operation Function to retry
+   * @param maxRetries Maximum number of retries
+   * @param delay Initial delay between retries in milliseconds
+   * @returns Promise resolving to operation result
+   */
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delay: number = 1000
+  ): Promise<T> {
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        if (attempt === maxRetries) {
+          console.error(`❌ Operation failed after ${maxRetries} retries:`, lastError.message);
+          break; // Don't wait after the last attempt
+        }
+        
+        // Only retry on specific error conditions
+        const shouldRetry = this.isRetryableError(lastError);
+        if (!shouldRetry) {
+          console.error(`❌ Non-retryable error encountered:`, lastError.message);
+          throw lastError;
+        }
+        
+        // Calculate exponential backoff with jitter
+        const backoffDelay = delay * Math.pow(2, attempt) + Math.random() * 1000;
+        console.warn(`⚠️  Geocoding attempt ${attempt + 1} failed, retrying in ${Math.round(backoffDelay)}ms:`, lastError.message);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      }
+    }
+    
+    throw lastError!;
+  }
+
+  /**
+   * Determine if an error is retryable based on Azure best practices
+   * @param error The error to check
+   * @returns True if the error should be retried
+   */
+  private isRetryableError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    
+    // Retry on network-related errors
+    if (message.includes('fetch') || 
+        message.includes('network') || 
+        message.includes('timeout') ||
+        message.includes('connection')) {
+      return true;
+    }
+    
+    // Retry on specific HTTP status codes (5xx server errors, 429 rate limit)
+    if (message.includes('500') || 
+        message.includes('502') || 
+        message.includes('503') || 
+        message.includes('504') ||
+        message.includes('429')) {
+      return true;
+    }
+    
+    // Retry on authentication token expiration
+    if (message.includes('401') || message.includes('unauthorized')) {
+      return true;
+    }
+    
+    // Don't retry on client errors (4xx except 401 and 429)
+    if (message.includes('400') || 
+        message.includes('403') || 
+        message.includes('404')) {
+      return false;
+    }
+    
+    return false;
+  }/**
+   * Geocode address using Azure Maps API with proper Entra ID authentication
+   * @param address Address to geocode
+   * @returns Promise resolving to coordinates
+   */  private async geocodeWithAzureMaps(address: Address): Promise<Coordinates> {
+    const addressString = this.formatAddressForGeocoding(address);
+    
+    try {
+      console.log(`🗺️  Attempting to geocode "${addressString}" with Azure Maps Geocoding API...`);
+        // Get access token for Azure Maps using managed identity/credential
+      const accessToken = await this.getAccessToken();
+      
+      // Use structured address parameters for better accuracy (recommended approach)
+      const params = new URLSearchParams({
+        'api-version': '2025-01-01',
+        'addressLine': `${address.street1}${address.street2 ? ' ' + address.street2 : ''}`,
+        'locality': address.city,
+        'adminDistrict': address.state,
+        'postalCode': address.zipCode,
+        'countryRegion': 'US',
+        'top': '1'
+      });
+      
+      const url = `https://atlas.microsoft.com/geocode?${params.toString()}`;
+      
+      console.log(`🔗 Request URL: ${url.replace(/addressLine=[^&]+/, 'addressLine=[REDACTED]')}`);
+      console.log(`📦 Address components:`, {
+        addressLine: `${address.street1}${address.street2 ? ' ' + address.street2 : ''}`,
+        locality: address.city,
+        adminDistrict: address.state,
+        postalCode: address.zipCode,
+        countryRegion: 'US'
+      });
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/geo+json',
+          'x-ms-client-id': this.mapsClientId
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Azure Maps Geocoding API error response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText,
+          url: url.replace(encodeURIComponent(addressString), '[ADDRESS]') // Hide address in logs
+        });
+        throw new Error(`Azure Maps Geocoding API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      // Parse GeoJSON response format
       const data = await response.json() as {
-        results?: Array<{
-          position: {
-            lat: number;
-            lon: number;
+        type: 'FeatureCollection';
+        features?: Array<{
+          type: 'Feature';
+          geometry: {
+            type: 'Point';
+            coordinates: [number, number]; // [longitude, latitude]
+          };
+          properties: {
+            address?: {
+              formattedAddress?: string;
+            };
+            confidence?: 'High' | 'Medium' | 'Low';
+            matchCodes?: string[];
+            type?: string;
           };
         }>;
       };
       
-      if (data.results && data.results.length > 0) {
-        const result = data.results[0];
-        console.log(`Geocoded "${addressString}" to ${result.position.lat}, ${result.position.lon}`);
-        return {
-          latitude: result.position.lat,
-          longitude: result.position.lon,
-        };
-      } else {
-        throw new Error('No geocoding results found');
+      if (!data.features || data.features.length === 0) {
+        throw new Error(`No geocoding results found for address: ${addressString}`);
       }
+      
+      const feature = data.features[0];
+      const [longitude, latitude] = feature.geometry.coordinates;
+      
+      const coordinates = {
+        latitude,
+        longitude,
+      };
+      
+      console.log(`✅ Azure Maps geocoded "${addressString}" to ${coordinates.latitude}, ${coordinates.longitude}`);
+      if (feature.properties?.address?.formattedAddress) {
+        console.log(`   📍 Matched address: ${feature.properties.address.formattedAddress}`);
+      }
+      if (feature.properties?.confidence) {
+        console.log(`   🎯 Confidence: ${feature.properties.confidence}`);
+      }
+      
+      return coordinates;
     } catch (error) {
-      console.error('Azure Maps geocoding error:', error);
-      throw error; // Re-throw so caller can decide on fallback
+      console.error(`❌ Azure Maps geocoding error for "${addressString}":`, error);
+      throw error;
     }
   }
-
-  /**
-   * Generate mock coordinates for development
-   * @param city City name
-   * @param state State abbreviation
-   * @returns Mock coordinates
-   */
-  private getMockCoordinates(city: string, state: string): Coordinates {
-    // Mock coordinates for common US cities
-    const cityCoordinates: Record<string, Coordinates> = {
-      'seattle_wa': { latitude: 47.6062, longitude: -122.3321 },
-      'portland_or': { latitude: 45.5152, longitude: -122.6784 },
-      'san francisco_ca': { latitude: 37.7749, longitude: -122.4194 },
-      'los angeles_ca': { latitude: 34.0522, longitude: -118.2437 },
-      'san diego_ca': { latitude: 32.7157, longitude: -117.1611 },
-      'phoenix_az': { latitude: 33.4484, longitude: -112.0740 },
-      'denver_co': { latitude: 39.7392, longitude: -104.9903 },
-      'austin_tx': { latitude: 30.2672, longitude: -97.7431 },
-      'dallas_tx': { latitude: 32.7767, longitude: -96.7970 },
-      'houston_tx': { latitude: 29.7604, longitude: -95.3698 },
-      'chicago_il': { latitude: 41.8781, longitude: -87.6298 },
-      'detroit_mi': { latitude: 42.3314, longitude: -83.0458 },
-      'minneapolis_mn': { latitude: 44.9778, longitude: -93.2650 },
-      'new york_ny': { latitude: 40.7128, longitude: -74.0060 },
-      'boston_ma': { latitude: 42.3601, longitude: -71.0589 },
-      'philadelphia_pa': { latitude: 39.9526, longitude: -75.1652 },
-      'washington_dc': { latitude: 38.9072, longitude: -77.0369 },
-      'atlanta_ga': { latitude: 33.7490, longitude: -84.3880 },
-      'miami_fl': { latitude: 25.7617, longitude: -80.1918 },
-      'orlando_fl': { latitude: 28.5383, longitude: -81.3792 },
-      'nashville_tn': { latitude: 36.1627, longitude: -86.7816 },
-      'charlotte_nc': { latitude: 35.2271, longitude: -80.8431 },
-      'raleigh_nc': { latitude: 35.7796, longitude: -78.6382 },
-    };
-
-    const key = `${city.toLowerCase()}_${state.toLowerCase()}`;
-    
-    // Return specific coordinates if city is known
-    if (cityCoordinates[key]) {
-      return cityCoordinates[key];
-    }
-
-    // Generate pseudo-random coordinates based on state for consistency
-    return this.generateStateBasedCoordinates(state.toLowerCase());
-  }
-
-  /**
-   * Generate coordinates within a state's approximate bounds
-   * @param state State abbreviation (lowercase)
-   * @returns Coordinates within the state
-   */
-  private generateStateBasedCoordinates(state: string): Coordinates {
-    // Approximate center coordinates for US states
-    const stateCenters: Record<string, Coordinates> = {
-      'al': { latitude: 32.7794, longitude: -86.8287 },
-      'ak': { latitude: 64.0685, longitude: -152.2782 },
-      'az': { latitude: 34.2744, longitude: -111.2847 },
-      'ar': { latitude: 34.9513, longitude: -92.3809 },
-      'ca': { latitude: 36.7783, longitude: -119.4179 },
-      'co': { latitude: 39.2797, longitude: -105.3272 },
-      'ct': { latitude: 41.6219, longitude: -72.7273 },
-      'de': { latitude: 38.9108, longitude: -75.5277 },
-      'fl': { latitude: 27.7663, longitude: -81.6868 },
-      'ga': { latitude: 32.9866, longitude: -83.6487 },
-      'hi': { latitude: 21.1098, longitude: -157.5311 },
-      'id': { latitude: 44.2394, longitude: -114.5103 },
-      'il': { latitude: 40.3363, longitude: -89.0022 },
-      'in': { latitude: 39.8647, longitude: -86.2604 },
-      'ia': { latitude: 42.0046, longitude: -93.2140 },
-      'ks': { latitude: 38.5111, longitude: -96.8005 },
-      'ky': { latitude: 37.6690, longitude: -84.6701 },
-      'la': { latitude: 31.1801, longitude: -91.8749 },
-      'me': { latitude: 44.6074, longitude: -69.3977 },
-      'md': { latitude: 39.6399, longitude: -79.0204 },
-      'ma': { latitude: 42.2373, longitude: -71.5314 },
-      'mi': { latitude: 43.3504, longitude: -84.5603 },
-      'mn': { latitude: 45.7326, longitude: -93.9196 },
-      'ms': { latitude: 32.7364, longitude: -89.6678 },
-      'mo': { latitude: 38.4623, longitude: -92.302 },
-      'mt': { latitude: 47.0527, longitude: -110.2148 },
-      'ne': { latitude: 41.1289, longitude: -98.2883 },
-      'nv': { latitude: 38.4199, longitude: -117.1219 },
-      'nh': { latitude: 43.4108, longitude: -71.5653 },
-      'nj': { latitude: 40.3140, longitude: -74.5089 },
-      'nm': { latitude: 34.8375, longitude: -106.2371 },
-      'ny': { latitude: 42.1497, longitude: -74.9384 },
-      'nc': { latitude: 35.6411, longitude: -79.8431 },
-      'nd': { latitude: 47.5362, longitude: -99.793 },
-      'oh': { latitude: 40.3736, longitude: -82.7755 },
-      'ok': { latitude: 35.5376, longitude: -96.9247 },
-      'or': { latitude: 44.5672, longitude: -122.1269 },
-      'pa': { latitude: 40.5773, longitude: -77.264 },
-      'ri': { latitude: 41.6762, longitude: -71.5562 },
-      'sc': { latitude: 33.8191, longitude: -80.9066 },
-      'sd': { latitude: 44.2853, longitude: -99.4632 },
-      'tn': { latitude: 35.7449, longitude: -86.7489 },
-      'tx': { latitude: 31.106, longitude: -97.6475 },
-      'ut': { latitude: 40.1135, longitude: -111.8535 },
-      'vt': { latitude: 44.0407, longitude: -72.7093 },
-      'va': { latitude: 37.7680, longitude: -78.2057 },
-      'wa': { latitude: 47.3917, longitude: -121.5708 },
-      'wv': { latitude: 38.4680, longitude: -80.9696 },
-      'wi': { latitude: 44.2563, longitude: -89.6385 },
-      'wy': { latitude: 42.7475, longitude: -107.2085 },
-      'dc': { latitude: 38.9072, longitude: -77.0369 },
-    };
-
-    const stateCenter = stateCenters[state] || { latitude: 39.8283, longitude: -98.5795 }; // US center as fallback
-    
-    // Add small random offset within reasonable bounds (about ±0.5 degrees)
-    const latOffset = (Math.random() - 0.5) * 1.0;
-    const lonOffset = (Math.random() - 0.5) * 1.0;
-    
-    return {
-      latitude: stateCenter.latitude + latOffset,
-      longitude: stateCenter.longitude + lonOffset,
-    };
-  }
-
   /**
    * Format address object as a display string
    * @param address Address object

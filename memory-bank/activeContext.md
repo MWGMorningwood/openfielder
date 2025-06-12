@@ -1,66 +1,93 @@
 # Active Context
 
 ## Current Session Focus
-**Date**: June 11, 2025  
-**Task**: Creating comprehensive instruction documentation for Azure SWA + Functions with Entra Auth
+**Date**: June 12, 2025  
+**Task**: Azure Maps Geocoding Implementation & Map Component Stability
 
 ## Immediate Tasks
-1. ✅ Create core memory bank files (systemPatterns, progress, productContext, decisionLog)
-2. ✅ Generate detailed Azure SWA + Functions instruction file
-3. ✅ Validate instructions against current project structure
-4. ✅ Update memory bank with new documentation patterns
-5. ✅ Establish memory bank usage guidelines
+1. ✅ Fix backend geocoding service to use correct Azure Maps API
+2. ✅ Update geocoding authentication to use DefaultAzureCredential
+3. ✅ Implement robust error handling with retry logic
+4. ✅ Resolve map component timing issues with source/layer addition
+5. ✅ Fix Azure Maps bounds calculation
+6. ✅ Update memory bank documentation to reflect current state
 
 ## Session Notes
 
-### Key Insights from Project Analysis
-- Project already has solid foundation with SWA + Functions architecture
-- Authentication is properly implemented using SWA built-in auth with Entra ID
-- TypeScript consistency across frontend and backend
-- Service layer pattern well established
-- Table Storage integration functional
+### Major Issues Resolved
+- **Backend Geocoding**: Migrated from deprecated Search API to Geocoding API 2025-01-01
+- **Authentication**: Switched to DefaultAzureCredential for Azure Maps access
+- **Map Timing**: Implemented promise-based readiness detection with buffer delays
+- **Bounds Calculation**: Fixed Azure Maps bounds format from coordinate arrays to [west, south, east, north]
 
-### Documentation Patterns Established
-- **systemPatterns.md**: Architectural decisions, naming conventions, code patterns
-- **progress.md**: Sprint tracking, completed tasks, priorities
-- **productContext.md**: Business logic, user requirements, feature specs
-- **decisionLog.md**: Technical decisions with rationale and alternatives
-- **activeContext.md**: Session focus and temporary notes
+### Technical Improvements Made
+- Enhanced error handling with specific error types and retry logic
+- Added comprehensive logging for debugging geocoding and map issues
+- Implemented exponential backoff with jitter for API failures
+- Created robust map readiness detection to prevent timing errors
 
-### Next Session Preparation
-- Instruction file should cover full development workflow
-- Include specific code patterns from current implementation
-- Provide step-by-step setup and deployment procedures
-- Cover security best practices and common pitfalls
+### Current State
+- Geocoding backend is fully functional and returning correct coordinates
+- Map bounds calculation is working properly
+- Map source addition timing has been significantly improved (minor issues may remain)
+- Error handling is comprehensive with user-friendly feedback
 
-## Temporary Notes
-- User wants comprehensive instructions for Azure SWA + Function combinations
-- Must include full Entra Auth integration
-- Should cover React-related frameworks (current: React + TypeScript + Vite)
-- Instructions should be actionable and detailed
-- Include both development and production considerations
+## Key Code Patterns Established
 
-## Code Snippets for Reference
+### Geocoding Service Pattern
 ```typescript
-// Current auth service pattern
-export class AuthService {
-  private static instance: AuthService;
-  async getUserInfo(): Promise<ClientPrincipal | null> {
-    const response = await fetch('/.auth/me');
-    // Implementation details...
+// Updated to use structured address parameters
+const params = new URLSearchParams({
+  'api-version': '2025-01-01',
+  'addressLine': `${address.street1}${address.street2 ? ' ' + address.street2 : ''}`,
+  'locality': address.city,
+  'adminDistrict': address.state,
+  'postalCode': address.zipCode,
+  'countryRegion': 'US'
+});
+```
+
+### Map Readiness Pattern
+```typescript
+// Promise-based map readiness with delay buffer
+const addSourcesAndLayers = async () => {
+  if (mapReadyPromiseRef.current) {
+    await mapReadyPromiseRef.current;
+  }
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Add sources/layers...
+};
+```
+
+### Error Handling Pattern
+```typescript
+// Exponential backoff with jitter
+private async retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt === maxRetries || !this.isRetryableError(error)) {
+        throw error;
+      }
+      const backoffDelay = delay * Math.pow(2, attempt) + Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, backoffDelay));
+    }
   }
 }
 ```
 
-```json
-// SWA config pattern
-{
-  "routes": [
-    { "route": "/api/*", "allowedRoles": ["authenticated"] }
-  ],
-  "navigationFallback": { "rewrite": "/index.html" }
-}
-```
+## Next Session Preparation
+- Monitor map component for any remaining timing issues
+- Consider implementing map component unit tests
+- Plan for deployment testing of geocoding service
+- Review performance implications of 1-second delay in map initialization
+
+Last Updated: June 12, 2025
 
 ## Action Items for Next Sessions
 - [ ] Validate instruction completeness against real project needs

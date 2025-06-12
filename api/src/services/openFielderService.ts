@@ -6,16 +6,14 @@ import {
   CreateTherapistRequest,
   CreateClientRequest,
   UpdateTherapistRequest,
-  UpdateClientRequest,
-  DistanceCalculation
+  UpdateClientRequest
 } from '../types';
 import { TableStorageService } from './tableStorage';
-import { geocodingService } from './geocodingService';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Business logic service for managing therapists and clients
- * Implements distance calculations and pairing logic
+ * No longer handles coordinates - they are geocoded on-demand in frontend
  */
 export class OpenFielderService {
   private tableService: TableStorageService;
@@ -32,47 +30,17 @@ export class OpenFielderService {
   }
 
   /**
-   * Calculate distance between two coordinates using Haversine formula
-   * @param lat1 Latitude of first point
-   * @param lon1 Longitude of first point
-   * @param lat2 Latitude of second point
-   * @param lon2 Longitude of second point
-   * @returns Distance in kilometers
-   */
-  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLon = this.toRadians(lon2 - lon1);
-    
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
-  }
-
-  /**
    * Create a new therapist
    */
   public async createTherapist(request: CreateTherapistRequest): Promise<Therapist> {
     const id = uuidv4();
     const now = new Date();
     
-    // Geocode the address to get coordinates
-    const coordinates = await geocodingService.geocodeAddress(request.address);
-    
     const therapist: Therapist = {
       id,
       name: request.name,
       email: request.email,
       phone: request.phone,
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
       address: request.address,
       isPaired: false,
       availability: request.availability,
@@ -88,8 +56,6 @@ export class OpenFielderService {
       name: therapist.name,
       email: therapist.email,
       phone: therapist.phone,
-      latitude: therapist.latitude,
-      longitude: therapist.longitude,
       address: JSON.stringify(therapist.address),
       isPaired: therapist.isPaired,
       clientId: therapist.clientId,
@@ -111,16 +77,11 @@ export class OpenFielderService {
     const id = uuidv4();
     const now = new Date();
     
-    // Geocode the address to get coordinates
-    const coordinates = await geocodingService.geocodeAddress(request.address);
-    
     const client: Client = {
       id,
       name: request.name,
       email: request.email,
       phone: request.phone,
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
       address: request.address,
       needsAssessment: request.needsAssessment,
       priority: request.priority,
@@ -135,8 +96,6 @@ export class OpenFielderService {
       name: client.name,
       email: client.email,
       phone: client.phone,
-      latitude: client.latitude,
-      longitude: client.longitude,
       address: JSON.stringify(client.address),
       therapistId: client.therapistId,
       needsAssessment: client.needsAssessment,
@@ -162,8 +121,6 @@ export class OpenFielderService {
       name: entity.name,
       email: entity.email,
       phone: entity.phone,
-      latitude: entity.latitude,
-      longitude: entity.longitude,
       address: JSON.parse(entity.address),
       isPaired: entity.isPaired,
       clientId: entity.clientId,
@@ -187,8 +144,6 @@ export class OpenFielderService {
       name: entity.name,
       email: entity.email,
       phone: entity.phone,
-      latitude: entity.latitude,
-      longitude: entity.longitude,
       address: JSON.parse(entity.address),
       therapistId: entity.therapistId,
       needsAssessment: entity.needsAssessment,
@@ -209,8 +164,6 @@ export class OpenFielderService {
       name: entity.name,
       email: entity.email,
       phone: entity.phone,
-      latitude: entity.latitude,
-      longitude: entity.longitude,
       address: JSON.parse(entity.address),
       isPaired: entity.isPaired,
       clientId: entity.clientId,
@@ -232,8 +185,6 @@ export class OpenFielderService {
       name: entity.name,
       email: entity.email,
       phone: entity.phone,
-      latitude: entity.latitude,
-      longitude: entity.longitude,
       address: JSON.parse(entity.address),
       therapistId: entity.therapistId,
       needsAssessment: entity.needsAssessment,
@@ -263,8 +214,6 @@ export class OpenFielderService {
       name: updated.name,
       email: updated.email,
       phone: updated.phone,
-      latitude: updated.latitude,
-      longitude: updated.longitude,
       address: JSON.stringify(updated.address),
       isPaired: updated.isPaired,
       clientId: updated.clientId,
@@ -298,8 +247,6 @@ export class OpenFielderService {
       name: updated.name,
       email: updated.email,
       phone: updated.phone,
-      latitude: updated.latitude,
-      longitude: updated.longitude,
       address: JSON.stringify(updated.address),
       therapistId: updated.therapistId,
       needsAssessment: updated.needsAssessment,
@@ -330,36 +277,6 @@ export class OpenFielderService {
       await this.unpairTherapist(client.therapistId);
     }
     await this.tableService.deleteEntity('CLIENT', id);
-  }
-
-  /**
-   * Find nearest therapists to a client
-   */
-  public async findNearestTherapists(clientId: string, maxResults: number = 10): Promise<DistanceCalculation[]> {
-    const client = await this.getClientById(clientId);
-    if (!client) throw new Error('Client not found');
-
-    const therapists = await this.getAllTherapists();
-    const availableTherapists = therapists.filter(t => !t.isPaired);
-
-    const distances: DistanceCalculation[] = availableTherapists.map(therapist => {
-      const distance = this.calculateDistance(
-        client.latitude, client.longitude,
-        therapist.latitude, therapist.longitude
-      );
-
-      return {
-        therapistId: therapist.id,
-        clientId: client.id,
-        distance,
-        therapistName: therapist.name,
-        clientName: client.name
-      };
-    });
-
-    return distances
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, maxResults);
   }
 
   /**
