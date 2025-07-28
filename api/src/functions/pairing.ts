@@ -73,12 +73,10 @@ async function handleGetNearestTherapists(
     const availableTherapists = allTherapists.filter(t => !t.isPaired).slice(0, maxResults);
     
     context.log(`Found ${availableTherapists.length} available therapists for client ${clientId}`);
-    
-    return {
+      return {
       status: 200,
       jsonBody: { 
-        message: 'Distance calculation is now handled in frontend with on-demand geocoding',
-        availableTherapists: availableTherapists.map(t => ({
+        nearestTherapists: availableTherapists.map(t => ({
           therapistId: t.id,
           clientId: clientId,
           distance: 0, // Distance calculated in frontend

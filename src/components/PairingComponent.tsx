@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { ArrowRight, MapPin, Clock, User, Phone, Mail, X } from 'lucide-react';
-import type { Client, Therapist, DistanceCalculation } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import { ArrowRight, MapPin, Clock, User, Phone, Mail, X, Navigation, Route } from 'lucide-react';
+import type { Client, Therapist, EnhancedDistanceCalculation } from '../types';
+import { routeDistanceService } from '../services/routeDistanceService';
 import { apiService } from '../services/apiService';
 import { geocodingService } from '../services/geocodingService';
 
@@ -16,28 +17,49 @@ export default function PairingComponent({
   therapists,
   onPairSuccess,
   onClose,
-}: PairingComponentProps) {
-  const [nearestTherapists, setNearestTherapists] = useState<DistanceCalculation[]>([]);
+}: PairingComponentProps) {  const [nearestTherapists, setNearestTherapists] = useState<EnhancedDistanceCalculation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPairing, setIsPairing] = useState(false);
   const [selectedTherapistId, setSelectedTherapistId] = useState<string>('');
 
-  useEffect(() => {
-    loadNearestTherapists();
-  }, [client.id]);
-
-  const loadNearestTherapists = async () => {
+  const loadNearestTherapists = useCallback(async () => {
     setIsLoading(true);
     try {
-      const distances = await apiService.findNearestTherapists(client.id, 10);
-      setNearestTherapists(distances);
+      // Filter available therapists
+      const availableTherapists = therapists.filter(t => !t.isPaired);
+      
+      // Create therapist address data for the route service
+      const therapistAddresses = availableTherapists.map(t => ({
+        id: t.id,
+        name: t.name,
+        address: t.address
+      }));
+
+      // Calculate enhanced distances using the new route service
+      const enhancedDistances = await routeDistanceService.calculateDistancesToTherapists(
+        client.address,
+        therapistAddresses
+      );
+
+      // Fill in client information and sort by distance
+      const distancesWithClientInfo = enhancedDistances.map(d => ({
+        ...d,
+        clientId: client.id,
+        clientName: client.name
+      })).sort((a, b) => a.distance - b.distance);
+
+      setNearestTherapists(distancesWithClientInfo);
     } catch (error) {
       console.error('Error loading nearest therapists:', error);
       alert('Failed to load nearest therapists. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [client.id, client.address, client.name, therapists]);
+
+  useEffect(() => {
+    loadNearestTherapists();
+  }, [loadNearestTherapists]);
 
   const handlePairTherapist = async () => {
     if (!selectedTherapistId) {
@@ -61,12 +83,41 @@ export default function PairingComponent({
   const getTherapistDetails = (therapistId: string): Therapist | undefined => {
     return therapists.find(t => t.id === therapistId);
   };
+  const formatDistance = (distance: EnhancedDistanceCalculation): React.ReactNode => {
+    const formatKm = (km: number) => {
+      if (km < 1) {
+        return `${Math.round(km * 1000)}m`;
+      }
+      return `${km.toFixed(1)}km`;
+    };
 
-  const formatDistance = (distance: number): string => {
-    if (distance < 1) {
-      return `${Math.round(distance * 1000)}m`;
+    if (distance.routeCalculationSuccess && distance.routeDistance) {
+      return (
+        <div className="distance-info">
+          <div className="route-distance">
+            <Route size={12} />
+            {formatKm(distance.routeDistance)}
+            {distance.travelTimeMinutes && (
+              <span className="travel-time"> ({Math.round(distance.travelTimeMinutes)}min)</span>
+            )}
+          </div>
+          <div className="straight-distance">
+            <Navigation size={12} />
+            {formatKm(distance.straightLineDistance)} direct
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="distance-info">
+          <div className="straight-distance">
+            <Navigation size={12} />
+            {formatKm(distance.straightLineDistance)} direct
+          </div>
+          <div className="route-error">Route calc failed</div>
+        </div>
+      );
     }
-    return `${distance.toFixed(1)}km`;
   };
 
   return (
@@ -149,9 +200,8 @@ export default function PairingComponent({
                             checked={selectedTherapistId === therapist.id}
                             onChange={(e) => setSelectedTherapistId(e.target.value)}
                           />
-                          <strong>{therapist.name}</strong>
-                          <span className="distance-badge">
-                            {formatDistance(distance.distance)}
+                          <strong>{therapist.name}</strong>                          <span className="distance-badge">
+                            {formatDistance(distance)}
                           </span>
                         </div>
                       </div>

@@ -2,7 +2,7 @@
   "name": "openfielder-api",
   "version": "1.0.0",
   "description": "Azure Functions API for OpenFielder therapist-client mapping",
-  "main": "dist/index.js",
+  "main": "dist/{index.js,functions/*.js}",
   "type": "commonjs",
   "scripts": {
     "build": "tsc",

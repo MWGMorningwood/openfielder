@@ -12,9 +12,4 @@
  * - POST /api/pairing/unpair - Unpair therapist
  */
 
-// Import all function definitions to register them
-import './functions/therapists';
-import './functions/clients';
-import './functions/pairing';
-import './functions/getMapsToken';
-import './functions/geocode';
+// Insert function-wide code here. Individual functions are defined in separate files and executed automatically from .\src\functions\{functionName}.ts

@@ -1,6 +1,12 @@
 # Progress Tracking
 
-## Current Sprint: Geocoding & Map Integration Enhancement
+## Current Sprint: Geocoding & Map Integration ## Recently Resolved Issues ✅
+- [x] **FIXED** Backend geocoding 500 errors - updated to correct Azure Maps API
+- [x] **FIXED** Map "not ready" errors when adding sources/layers
+- [x] **FIXED** Invalid bounds calculation for Azure Maps camera positioning
+- [x] **FIXED** TypeScript compilation errors in map components
+- [x] **FIXED** Route matrix function authentication - now uses shared auth service
+- [x] **FIXED** Inconsistent Azure Maps authentication patterns across functionscement
 **Sprint Start**: June 12, 2025  
 **Focus**: Azure Maps Geocoding API Integration & Map Component Stability
 
@@ -42,6 +48,24 @@
 - [x] **NEW** Fixed Azure Maps bounds calculation
 - [x] **NEW** Improved map readiness detection with promise-based approach
 - [x] **NEW** Enhanced geocoding workflow with frontend/backend coordination
+
+### Distance Calculation Enhancement ✨
+- [x] **NEW** Fixed pairing modal functionality (was showing as panel at bottom)
+- [x] **NEW** Implemented Azure Maps Route Matrix API for route distance calculation
+- [x] **NEW** Enhanced distance service with both straight-line and route distances
+- [x] **NEW** Route distance caching for improved performance
+- [x] **NEW** Fallback to straight-line distance when route calculation fails
+- [x] **NEW** Enhanced distance display showing both "direct" and "route" distances with travel time
+- [x] **NEW** Added visual icons for different distance types (Navigation, Route icons)
+- [x] **NEW** Comprehensive error handling for route calculations
+
+### Security & Authentication Policy 🔒
+- [x] **NEW** Enforced Azure Managed Identity ONLY policy for Azure Maps
+- [x] **NEW** Explicitly forbidden subscription key usage (documented in AZURE_MAPS_AUTH_POLICY.md)
+- [x] **NEW** Enhanced authentication error messages
+- [x] **NEW** Security-first approach with RBAC requirements
+- [x] **NEW** Shared Azure Maps authentication service for consistent auth patterns
+- [x] **NEW** Updated route matrix function to use shared authentication service
 
 ### Configuration
 - [x] Static Web App configuration (`staticwebapp.config.json`)
@@ -98,5 +122,7 @@
 - **Authentication**: Using DefaultAzureCredential for Azure Maps (eliminates subscription key dependency)
 - **Error Handling**: Implemented exponential backoff with jitter for geocoding retries
 - **Map Timing**: Added promise-based readiness detection with 1-second delay for source addition
+- **Shared Services**: Created shared Azure Maps authentication service and retry utility service
+- **Route Directions**: Implemented new route directions API with same robust patterns as geocoding
 
-Last Updated: June 12, 2025
+Last Updated: June 13, 2025

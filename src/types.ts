@@ -45,6 +45,20 @@ export interface DistanceCalculation {
   clientName: string;
 }
 
+/**
+ * Enhanced distance calculation that includes both straight-line and route distances
+ */
+export interface EnhancedDistanceCalculation extends DistanceCalculation {
+  /** Straight-line distance in kilometers */
+  straightLineDistance: number;
+  /** Route distance in kilometers (driving) */
+  routeDistance?: number;
+  /** Travel time in minutes */
+  travelTimeMinutes?: number;
+  /** Whether route calculation was successful */
+  routeCalculationSuccess: boolean;
+}
+
 // Extended interfaces for when coordinates are needed
 export interface TherapistWithCoordinates extends Therapist {
   latitude: number;
@@ -59,6 +73,22 @@ export interface ClientWithCoordinates extends Client {
 export interface Coordinates {
   latitude: number;
   longitude: number;
+}
+
+/**
+ * Route calculation result from Azure Maps Route Directions API
+ */
+export interface RouteResult {
+  /** Distance in kilometers */
+  distanceKm: number;
+  /** Travel time in minutes */
+  travelTimeMinutes: number;
+  /** Traffic delay in seconds */
+  trafficDelaySeconds: number;
+  /** Departure time (ISO string) */
+  departureTime?: string;
+  /** Arrival time (ISO string) */
+  arrivalTime?: string;
 }
 
 export interface CreateTherapistRequest {
